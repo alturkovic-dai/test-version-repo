@@ -1,0 +1,14 @@
+# Exported from:        http://Alens-MacBook-Air.local:5516/
+# Release version:      24.1.0
+# Date created:         Fri Oct 03 12:58:35 CEST 2025
+
+---
+apiVersion: xl-release/v1
+kind: Environments
+metadata:
+  path: /
+  home: Apps and Envs
+spec:
+- name: Env 1
+  type: xlrelease.Environment
+  stage: Test
