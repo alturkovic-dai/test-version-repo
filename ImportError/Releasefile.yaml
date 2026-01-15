@@ -10,7 +10,7 @@ spec:
 - template: Placeholder 🏭
   scheduledStartDate: 2026-01-15T09:00:00+01:00
   phases:
-  - phase: prd
+  - phase: prd 1
     tasks:
     - name: 👉 SET COULOIR
       type: xlrelease.UserInputTask
@@ -429,5 +429,843 @@ spec:
       jobName: p-1212-e0511-carat/job/carat-batch-controlm
       branch: develop
     color: "#3d6c9e"
+  - phase: prd 2
+    tasks:
+    - name: 👉 SET COULOIR
+      type: xlrelease.UserInputTask
+      description: Please enter the required information below.
+      variables:
+      - ext_chainNum
+      - study
+    - name: 🏭 SET ENV & AAP VARIABLES
+      type: xlrelease.ScriptTask
+      script: |-
+        #This action automatically generates create release tasks according to the number of delivery units to deploy
+
+
+
+        from com.xebialabs.xlrelease.domain.variables import StringVariable, ListStringVariable, MapStringStringVariable, PasswordStringVariable
+        from com.xebialabs.xlrelease.api.v1.forms import Variable
+        from com.xebialabs.xlrelease.api.v1 import PhaseApi
+
+
+        ####get phase name ###
+        phase = getCurrentPhase()
+        current_phase = phaseApi.getPhase(phase.id)
+        phase_name = current_phase.title
+
+        ext_env = phase_name[0:3]
+
+        ##set env variable from phase_name
+        if str(phase_name) == "int":
+            env = "HORSPROD"
+            releaseVariables['api_url_list'] = releaseVariables['api_dev']
+            releaseVariables['hosts'] = releaseVariables['hosts_int']
+        if str(phase_name) == "rec":
+            env = "ISOPROD"
+            releaseVariables['api_url_list'] = releaseVariables['api_rec']
+            releaseVariables['hosts'] = releaseVariables['hosts_rec1']
+        if str(phase_name) == "ppd":
+            env = "PROD"
+            releaseVariables['api_url_list'] = releaseVariables['api_ppd']
+            releaseVariables['hosts'] = releaseVariables['hosts_ppd']
+        if str(phase_name) == "prd":
+            env = "PROD"
+            releaseVariables['api_url_list'] = releaseVariables['api_prd']
+            releaseVariables['hosts'] = releaseVariables['hosts_prd']
+
+        releaseVariables['env'] = env
+        if ext_env == "prd":
+            releaseVariables['ext_env'] = "prod"
+        else:
+            releaseVariables['ext_env'] = ext_env
+
+        #Set artifactory file path
+        if "SNAPSHOT" in '${version}':
+            type = "SNAPSHOT"
+        else:
+            type = "RELEASE"
+
+        base_artifact_url = "https://repo.artifactory-dogen.group.echonet/artifactory/"
+        artifact_uri = "p-" + '${ext_projectID}' + "-" + '${artifactId}' + "-" + str(type) + "/" + '${artifactPath}' +  "/" + '${moduleName}' + "/" + '${version}' + "/"
+        draft_zip_file = '${moduleName}' + "-" + '${version}' + "-" + str(ext_env).upper() + "-C" + '${ext_chainNum}' + ".zip"
+        drafts_files_path = str(base_artifact_url) + str(artifact_uri) + str(draft_zip_file)
+        releaseVariables['drafts_files_path'] = str(drafts_files_path)
+
+        ## Set AAP Inventories
+        if not "Rollback" in str(phase_name):
+            inventory = "i-" + '${ap_code}' + "-" + '${pipeline}' + "-" + '${ext_projectID}' + "-" + '${AAP-name-organizations}' + "-" + str(env)
+            var_inventory_name = "AAP-name-" + '${AAP-name-organizations}' + "-" + str(env) + "-inventories"
+            var_inventory_id = "AAP-id-" + '${AAP-name-organizations}' + "-" + str(env) + "-inventories"
+            releaseVariables[var_inventory_name] = inventory
+            releaseVariables[var_inventory_id] = ""
+
+        ## Set other AAP resources if we are in first phase_name
+        if releaseVariables['index'] == 0:
+            ## AAP Organization
+            var_orga_id = "AAP-id-" + "organizations"
+            releaseVariables[var_orga_id] = ""
+
+            ## AAP Artifactory credential
+            atifactory_cred = "ca-" + '${ap_code}' + "-" + '${ext_projectID}' + "-" + '${AAP-name-organizations}'
+            var_cred_name = "AAP-name-" + '${AAP-name-organizations}' + "-artifactory-credentials"
+            var_cred_id = "AAP-id-" + '${AAP-name-organizations}' + "-artifactory-credentials"
+            releaseVariables[var_cred_name] = atifactory_cred
+            releaseVariables[var_cred_id] = ""
+
+            ## AAP Job templates
+            job_template = "j-" + '${ap_code}' + "-" + '${pipeline}' + "-" + '${ext_projectID}' + "-" + '${AAP-name-organizations}'
+            var_job_template_name = "AAP-name-" + '${AAP-name-organizations}' + "-job_templates"
+            var_job_template_id = "AAP-id-" + '${AAP-name-organizations}' + "-job_templates"
+            releaseVariables[var_job_template_name] = job_template
+            releaseVariables[var_job_template_id] = ""
+
+            ## AAP Project
+            project = "p-" + '${ap_code}' + "-" + '${pipeline}' + "-" + '${ext_projectID}'
+            var_poject_name = "AAP-name-" + '${AAP-name-organizations}' + "-projects"
+            var_poject_id = "AAP-id-" + '${AAP-name-organizations}' + "-projects"
+            releaseVariables[var_poject_name] = project
+            releaseVariables[var_poject_id] = ""
+
+            ## AAP Artifactory credentials
+            atifactory_cred = "ca-" + '${ap_code}' + "-" + '${ext_projectID}' + "-" + '${AAP-name-organizations}'
+            var_cred_name = "AAP-name-" + '${AAP-name-organizations}' + "-artifactory-credentials"
+            var_cred_id = "AAP-id-" + '${AAP-name-organizations}' + "-artifactory-credentials"
+            releaseVariables[var_cred_name] = atifactory_cred
+            releaseVariables[var_cred_id] = ""
+
+
+
+        ## Phase rename
+        release = getCurrentRelease()
+        phase = getCurrentPhase()
+        phase.title = str(phase_name) + " " + '${ext_chainNum}'
+        phaseApi.updatePhase(phase)
+    - name: 🚧 SETTINGS
+      type: xlrelease.SequentialGroup
+      tasks:
+      - name: 🛒 GET AAP RESOURCES IDs
+        type: xlrelease.SequentialGroup
+        tasks:
+        - name: 🏭 Get AAP Resources Ids task generator
+          type: xlrelease.ScriptTask
+          script: |-
+            from com.xebialabs.xlrelease.domain.recover import TaskRecoverOp
+
+
+            ## get id of sequential group to insert tasks into & Delete tasks if present
+            sequentialGroupId = None
+            parenttask = getCurrentTask().container
+            for child in parenttask.getAllTasks():
+                if str(child.type).lower() == "xlrelease.SequentialGroup".lower():
+                    sequentialGroupId = child.id
+                if str(child.type).lower() == "xlrelease.CustomScriptTask".lower():
+                    taskApi.delete(child.id)
+
+
+            ## get all release variables into list
+            varList = releaseApi.getVariables(release.id)
+
+            ##create JsonWebhook tasks to get the ID of the AAP resources
+            for obj in varList:
+                if "AAP-name" in obj.key:
+                   resource = obj.value
+                   var_name = obj.key
+                   type = var_name.split('-')[-1]
+                   var_resourceId = var_name.replace("name", "id")
+                   if releaseVariables[var_resourceId] == "":
+                    api_check_url = "https://ansible-devops.group.echonet/api/v2/" + str(type) + "/?search=" + str(resource)
+                    taskCheckResource = taskApi.newTask("webhook.JsonWebhook")
+                    taskCheckResource.pythonScript.setProperty("URL", api_check_url)
+                    taskCheckResource.pythonScript.setProperty("method", 'GET')
+                    taskCheckResource.pythonScript.setProperty("jsonPathExpression", "$" + ".results[0].id")
+                    taskCheckResource.variableMapping = {"pythonScript.result" : "$" + "{" + str(var_resourceId) + "}"}
+                    taskCheckResource.pythonScript.setProperty("username", "$" + "{" + "user" + "}")
+                    taskCheckResource.pythonScript.setProperty("password", "$" + "{" + "password" + "}")
+                    taskCheckResource.setTaskFailureHandlerEnabled(True)
+                    taskCheckResource.setTaskRecoverOp(TaskRecoverOp.SKIP_TASK)
+                    taskCheckResource.title = "get " + str(type) + " " + str(resource)
+                    taskApi.addTask(sequentialGroupId, taskCheckResource)
+        - name: 🚧 GET AAP RESOURCES GROUP
+          type: xlrelease.SequentialGroup
+      - name: 🔐 SET AAP ARTIFACTORY CREDENTIAL
+        type: xlrelease.SequentialGroup
+        tasks:
+        - name: 🏭 Set Credential task generator
+          type: xlrelease.ScriptTask
+          script: |-
+            ## get id of sequential group to insert tasks into & Delete tasks if present
+            sequentialGroupId = None
+            parenttask = getCurrentTask().container
+            for child in parenttask.getAllTasks():
+                if str(child.type).lower() == "xlrelease.SequentialGroup".lower():
+                    sequentialGroupId = child.id
+                if str(child.type).lower() == "xlrelease.CustomScriptTask".lower():
+                    taskApi.delete(child.id)
+
+            ## get all release variables into list
+            varList = releaseApi.getVariables(release.id)
+
+
+            for obj in varList:
+                if obj.key == "AAP-id-" + "organizations":
+                    organization_id = obj.value
+                if obj.key == "AAP-id-" + '${AAP-name-organizations}' + "-artifactory-credentials":
+                    resource_id = obj.value
+                    var_name = obj.key
+                    resource_type = var_name.split('-')[-1]
+                if obj.key == "AAP-name-" + '${AAP-name-organizations}' + "-artifactory-credentials":
+                    resource_name = obj.value
+                    credential_type = '24'
+            body = "\"" + "name" + "\"" + ": " + "\"" + str(resource_name) + "\"" + ", " + "\"" + "organization" + "\"" + ": " + str(organization_id) + ", " + "\"" + "credential_type" + "\"" + ": " + str(credential_type) + ", " + "\"" + "inputs" + "\"" + ": { " + "\"" + "artifact_user" + "\"" + ": " + "\"" + "$" + "{" + "user" + "}" + "\"" + ", " + "\"" + "artifact_password" + "\"" + ": " + "\"" + "$" + "{" + "password" + "}" + "\"" + "}"
+
+
+            api_put_url = "https://ansible-devops.group.echonet/api/v2/" + str(resource_type) + "/" + str(resource_id) + "/"
+            taskUpdateResource = taskApi.newTask("webhook.JsonWebhook")
+            taskUpdateResource.pythonScript.setProperty("URL", api_put_url)
+            taskUpdateResource.pythonScript.setProperty("method", 'PUT')
+            taskUpdateResource.pythonScript.setProperty("body", "{" + str(body) + "}")
+            taskUpdateResource.pythonScript.setProperty("username", "$" + "{" + "user" + "}")
+            taskUpdateResource.pythonScript.setProperty("password", "$" + "{" + "password" + "}")
+            taskUpdateResource.title = "Set credential " + " " + str(resource_name)
+            taskApi.addTask(sequentialGroupId, taskUpdateResource)
+        - name: 🚧 SET CREDENTIAL GROUP
+          type: xlrelease.SequentialGroup
+      - name: ✍ UPDATE AAP RESOURCES
+        type: xlrelease.SequentialGroup
+        tasks:
+        - name: 🏭 Update AAP Resources task generator
+          type: xlrelease.ScriptTask
+          script: |-
+            ####get phase name ###
+            phase = getCurrentPhase()
+            current_phase = phaseApi.getPhase(phase.id)
+            phase_name = current_phase.title
+
+
+            ## get id of sequential group to insert tasks into & Delete tasks if present
+            sequentialGroupId = None
+            parenttask = getCurrentTask().container
+            for child in parenttask.getAllTasks():
+                if str(child.type).lower() == "xlrelease.SequentialGroup".lower():
+                    sequentialGroupId = child.id
+                if str(child.type).lower() == "xlrelease.CustomScriptTask".lower():
+                    taskApi.delete(child.id)
+
+            ## Set variables for project update
+            scm_url = '${scm_url}'
+            scm_branch = '${scm_branch}'
+
+            ## Set variables for job_templae update
+            if "Rollback" in str(phase_name):
+                playbook = 'draft_rollback.yaml'
+            else:
+                playbook = 'draft_deploy.yaml'
+
+            ## get all release variables into list
+            varList = releaseApi.getVariables(release.id)
+
+
+            for obj in varList:
+                if obj.key == "AAP-id-" + '${AAP-name-organizations}' + "-projects" or obj.key == "AAP-id-" + '${AAP-name-organizations}' + "-job_templates":
+                    resource_id = obj.value
+                    resource_name = obj.key
+                    resource_type = resource_name.split('-')[-1]
+                    if "projects" in obj.key:
+                        body = "\"" + "scm_url" + "\"" + ": " + "\"" + str(scm_url) + "\"" + ", " + "\"" + "scm_branch" + "\"" + ": " + "\"" + str(scm_branch) + "\""
+                    if "job_templates" in obj.key:
+                        body = "\"" + "playbook" + "\"" + ": " + "\"" + str(playbook) + "\""
+
+                    api_patch_url = "https://ansible-devops.group.echonet/api/v2/" + str(resource_type) + "/" + str(resource_id) + "/"
+                    taskUpdateResource = taskApi.newTask("webhook.JsonWebhook")
+                    taskUpdateResource.pythonScript.setProperty("URL", api_patch_url)
+                    taskUpdateResource.pythonScript.setProperty("method", 'PATCH')
+                    taskUpdateResource.pythonScript.setProperty("body", "{" + str(body) + "}")
+                    taskUpdateResource.pythonScript.setProperty("username", "$" + "{" + "user" + "}")
+                    taskUpdateResource.pythonScript.setProperty("password", "$" + "{" + "password" + "}")
+                    taskUpdateResource.title = "update " + " " + str(resource_name)
+                    taskApi.addTask(sequentialGroupId, taskUpdateResource)
+        - name: 🚧 UPDATE AAP RESOURCES GROUP
+          type: xlrelease.SequentialGroup
+    - name: 🚀 DEPLOY
+      type: xlrelease.SequentialGroup
+      tasks:
+      - name: 🏭 Deploy task generator
+        type: xlrelease.ScriptTask
+        script: |-
+          from com.xebialabs.xlrelease.domain.variables import StringVariable, ListStringVariable, MapStringStringVariable, PasswordStringVariable
+          from com.xebialabs.xlrelease.api.v1.forms import Variable
+          from com.xebialabs.xlrelease.api.v1 import PhaseApi
+          from com.xebialabs.xlrelease.domain.recover import TaskRecoverOp
+
+          releaseId = getCurrentRelease().id
+
+          ## Set AAP Server env
+          listFolder = releaseId.split('/')
+          FolderId = listFolder[1]
+          ServerName = "devopstc-ansibleAutomation-" + '${env}'
+          aap_server_config = configurationApi.searchByTypeAndTitle("ansibletower.Server",str(ServerName), FolderId)[0]
+
+
+          phase = getCurrentPhase()
+          current_phase = phaseApi.getPhase(phase.id)
+          phase_name = current_phase.title
+
+
+          ## get id of sequential group to insert tasks into
+          sequentialGroupId = None
+          parenttask = getCurrentTask().container
+          for child in parenttask.getChildren():
+              if str(child.type).lower() == "xlrelease.sequentialGroup".lower():
+                  sequentialGroupId = child.id
+              if str(child.type).lower() == "ansibletower.launchAndWait".lower():
+                  taskApi.delete(child.id)
+
+          #Set AAP resources Ids
+          varList = releaseApi.getVariables(release.id)
+
+          for obj in varList:
+              if "AAP-id" in obj.key and "credentials" in obj.key:
+                  credential_id = obj.value
+              if "AAP-id" in obj.key and "job_templates" in obj.key:
+                  job_template_id = obj.value
+              if "AAP-id" in obj.key and "inventories" in obj.key:
+                  inventory_id = obj.value
+
+          task=0
+          for api_url in ${api_url_list}:
+              deployTask = taskApi.newTask("ansibletower.launchAndWait")
+              if task == 1:
+                  deployTask.precondition = "releaseVariables['jobstatus'] == 'Failed'"
+              else:
+                  deployTask.variableMapping = {"pythonScript.status" : "$" + "{" + "jobstatus" + "}"}
+                  deployTask.setTaskFailureHandlerEnabled(True)
+                  deployTask.setTaskRecoverOp(TaskRecoverOp.SKIP_TASK)
+              task += 1
+              extra_vars = ${extra_vars}
+              extra_vars["base_url"] = api_url
+
+              ##Create task
+              deployTask.title = 'deploy Draft Control-M' + " " + 'on ' + '${ext_env}' + '${ext_chainNum}'
+              deployTask.pythonScript.setProperty("ansibletower", aap_server_config)
+              deployTask.pythonScript.setProperty("job_template_id",job_template_id)
+              deployTask.pythonScript.setProperty("inventory",inventory_id)
+              deployTask.pythonScript.setProperty("extra_vars", extra_vars)
+              deployTask.pythonScript.setProperty("credentials", credential_id)
+
+
+              ##Add task in sequential group
+              taskApi.addTask(sequentialGroupId, deployTask)
+      - name: 🚧 DEPLOY GROUP
+        type: xlrelease.SequentialGroup
+    - name: 🛃VALIDATION
+      type: xlrelease.GateTask
+      failureHandler: |-
+        index = '${index}'
+
+        ##Create rollback phase
+        index = int(index) + 1
+        current_phase = getCurrentPhase()
+        newphase = phaseApi.copyPhase(current_phase.id, int(index))
+
+        ##update rollback phase title
+        newphase.title = phase.title + ' Rollback'
+        phaseApi.updatePhase(newphase)
+
+        ##Get current phase tasks to skip
+        ListOfCurrentPhaseTasksToSkip = []
+        for task in current_phase.tasks:
+            if task.status == "PLANNED":
+                ListOfCurrentPhaseTasksToSkip.append(task)
+            if task.status == "FAILURE_HANDLER_IN_PROGRESS":
+                LastTaskToSkip = task
+
+        ##Get new phase tasks to skip
+        ListOfNewPhaseTasks = []
+        for task in newphase.tasks:
+            ListOfNewPhaseTasks.append(task)
+        ListOfNewPhaseTasksToSkip = ListOfNewPhaseTasks[0:2]
+
+        ##Delete remain phases
+        ListOfPhases = []
+        for phase in release.phases[int(index):]:
+            ListOfPhases.append(phase)
+            phaseApi.deletePhase(phase.id)
+
+        ##Skip tasks (current + new phase)
+        ListOfNewPhaseTasksToSkip.reverse()
+        ListOfCurrentPhaseTasksToSkip.reverse()
+        ListOftasksToSkip = ListOfNewPhaseTasksToSkip + ListOfCurrentPhaseTasksToSkip
+
+        for task in ListOftasksToSkip:
+            taskApi.assignTask(task.id, releaseVariables['user'])
+            taskApi.skipTask(task.id, "Rollback")
+
+        time.sleep(10)
+
+        ##Skip current task
+        taskApi.assignTask(LastTaskToSkip.id, releaseVariables['user'])
+        taskApi.skipTask(LastTaskToSkip.id, "Rollback")
+      taskFailureHandlerEnabled: true
+      taskRecoverOp: RUN_SCRIPT
+    - name: 👉 DEPLOY TO ANOTHER COULOIR ?
+      type: xlrelease.UserInputTask
+      description: Please enter the required information below.
+      variables:
+      - other_couloir
+    - name: ❓ Next couloir or Next environment
+      type: xlrelease.ScriptTask
+      script: |-
+        phase = getCurrentPhase()
+        #current_phase = phaseApi.getPhase(phase.id)
+        phase_name = phase.title
+
+        if releaseVariables['other_couloir'] == 'yes':
+
+
+          newphase = phaseApi.copyPhase(phase.id,releaseVariables['index'] )
+
+
+          ##update next phase
+          newphase.title = phase_name[0:3]
+          phaseApi.updatePhase(newphase)
+
+          ##Rename promote task
+          list_promote_task = getTasksByTitle('Promote to next environment', phaseTitle = phase_name)
+          promote_task = list_promote_task[0]
+          promote_task.title = 'Promote to next lane'
+          taskApi.updateTask(promote_task)
+
+
+        ##
+        releaseVariables['ext_chainNum'] = ""
+    - name: 👉 Promote to next environment
+      type: xlrelease.UserInputTask
+      description: Please enter the required information below.
+    - name: test
+      type: jenkins.Build
+      jenkinsServer: devopstc-jenkins
+      jobName: p-1212-e0511-carat/job/carat-batch-controlm
+      branch: develop
+    color: "#3d6c9e"
+  - phase: prd 3
+    tasks:
+    - name: 👉 SET COULOIR
+      type: xlrelease.UserInputTask
+      description: Please enter the required information below.
+      variables:
+      - ext_chainNum
+      - study
+    - name: 🏭 SET ENV & AAP VARIABLES
+      type: xlrelease.ScriptTask
+      script: |-
+        #This action automatically generates create release tasks according to the number of delivery units to deploy
+
+
+
+        from com.xebialabs.xlrelease.domain.variables import StringVariable, ListStringVariable, MapStringStringVariable, PasswordStringVariable
+        from com.xebialabs.xlrelease.api.v1.forms import Variable
+        from com.xebialabs.xlrelease.api.v1 import PhaseApi
+
+
+        ####get phase name ###
+        phase = getCurrentPhase()
+        current_phase = phaseApi.getPhase(phase.id)
+        phase_name = current_phase.title
+
+        ext_env = phase_name[0:3]
+
+        ##set env variable from phase_name
+        if str(phase_name) == "int":
+            env = "HORSPROD"
+            releaseVariables['api_url_list'] = releaseVariables['api_dev']
+            releaseVariables['hosts'] = releaseVariables['hosts_int']
+        if str(phase_name) == "rec":
+            env = "ISOPROD"
+            releaseVariables['api_url_list'] = releaseVariables['api_rec']
+            releaseVariables['hosts'] = releaseVariables['hosts_rec1']
+        if str(phase_name) == "ppd":
+            env = "PROD"
+            releaseVariables['api_url_list'] = releaseVariables['api_ppd']
+            releaseVariables['hosts'] = releaseVariables['hosts_ppd']
+        if str(phase_name) == "prd":
+            env = "PROD"
+            releaseVariables['api_url_list'] = releaseVariables['api_prd']
+            releaseVariables['hosts'] = releaseVariables['hosts_prd']
+
+        releaseVariables['env'] = env
+        if ext_env == "prd":
+            releaseVariables['ext_env'] = "prod"
+        else:
+            releaseVariables['ext_env'] = ext_env
+
+        #Set artifactory file path
+        if "SNAPSHOT" in '${version}':
+            type = "SNAPSHOT"
+        else:
+            type = "RELEASE"
+
+        base_artifact_url = "https://repo.artifactory-dogen.group.echonet/artifactory/"
+        artifact_uri = "p-" + '${ext_projectID}' + "-" + '${artifactId}' + "-" + str(type) + "/" + '${artifactPath}' +  "/" + '${moduleName}' + "/" + '${version}' + "/"
+        draft_zip_file = '${moduleName}' + "-" + '${version}' + "-" + str(ext_env).upper() + "-C" + '${ext_chainNum}' + ".zip"
+        drafts_files_path = str(base_artifact_url) + str(artifact_uri) + str(draft_zip_file)
+        releaseVariables['drafts_files_path'] = str(drafts_files_path)
+
+        ## Set AAP Inventories
+        if not "Rollback" in str(phase_name):
+            inventory = "i-" + '${ap_code}' + "-" + '${pipeline}' + "-" + '${ext_projectID}' + "-" + '${AAP-name-organizations}' + "-" + str(env)
+            var_inventory_name = "AAP-name-" + '${AAP-name-organizations}' + "-" + str(env) + "-inventories"
+            var_inventory_id = "AAP-id-" + '${AAP-name-organizations}' + "-" + str(env) + "-inventories"
+            releaseVariables[var_inventory_name] = inventory
+            releaseVariables[var_inventory_id] = ""
+
+        ## Set other AAP resources if we are in first phase_name
+        if releaseVariables['index'] == 0:
+            ## AAP Organization
+            var_orga_id = "AAP-id-" + "organizations"
+            releaseVariables[var_orga_id] = ""
+
+            ## AAP Artifactory credential
+            atifactory_cred = "ca-" + '${ap_code}' + "-" + '${ext_projectID}' + "-" + '${AAP-name-organizations}'
+            var_cred_name = "AAP-name-" + '${AAP-name-organizations}' + "-artifactory-credentials"
+            var_cred_id = "AAP-id-" + '${AAP-name-organizations}' + "-artifactory-credentials"
+            releaseVariables[var_cred_name] = atifactory_cred
+            releaseVariables[var_cred_id] = ""
+
+            ## AAP Job templates
+            job_template = "j-" + '${ap_code}' + "-" + '${pipeline}' + "-" + '${ext_projectID}' + "-" + '${AAP-name-organizations}'
+            var_job_template_name = "AAP-name-" + '${AAP-name-organizations}' + "-job_templates"
+            var_job_template_id = "AAP-id-" + '${AAP-name-organizations}' + "-job_templates"
+            releaseVariables[var_job_template_name] = job_template
+            releaseVariables[var_job_template_id] = ""
+
+            ## AAP Project
+            project = "p-" + '${ap_code}' + "-" + '${pipeline}' + "-" + '${ext_projectID}'
+            var_poject_name = "AAP-name-" + '${AAP-name-organizations}' + "-projects"
+            var_poject_id = "AAP-id-" + '${AAP-name-organizations}' + "-projects"
+            releaseVariables[var_poject_name] = project
+            releaseVariables[var_poject_id] = ""
+
+            ## AAP Artifactory credentials
+            atifactory_cred = "ca-" + '${ap_code}' + "-" + '${ext_projectID}' + "-" + '${AAP-name-organizations}'
+            var_cred_name = "AAP-name-" + '${AAP-name-organizations}' + "-artifactory-credentials"
+            var_cred_id = "AAP-id-" + '${AAP-name-organizations}' + "-artifactory-credentials"
+            releaseVariables[var_cred_name] = atifactory_cred
+            releaseVariables[var_cred_id] = ""
+
+
+
+        ## Phase rename
+        release = getCurrentRelease()
+        phase = getCurrentPhase()
+        phase.title = str(phase_name) + " " + '${ext_chainNum}'
+        phaseApi.updatePhase(phase)
+    - name: 🚧 SETTINGS
+      type: xlrelease.SequentialGroup
+      tasks:
+      - name: 🛒 GET AAP RESOURCES IDs
+        type: xlrelease.SequentialGroup
+        tasks:
+        - name: 🏭 Get AAP Resources Ids task generator
+          type: xlrelease.ScriptTask
+          script: |-
+            from com.xebialabs.xlrelease.domain.recover import TaskRecoverOp
+
+
+            ## get id of sequential group to insert tasks into & Delete tasks if present
+            sequentialGroupId = None
+            parenttask = getCurrentTask().container
+            for child in parenttask.getAllTasks():
+                if str(child.type).lower() == "xlrelease.SequentialGroup".lower():
+                    sequentialGroupId = child.id
+                if str(child.type).lower() == "xlrelease.CustomScriptTask".lower():
+                    taskApi.delete(child.id)
+
+
+            ## get all release variables into list
+            varList = releaseApi.getVariables(release.id)
+
+            ##create JsonWebhook tasks to get the ID of the AAP resources
+            for obj in varList:
+                if "AAP-name" in obj.key:
+                   resource = obj.value
+                   var_name = obj.key
+                   type = var_name.split('-')[-1]
+                   var_resourceId = var_name.replace("name", "id")
+                   if releaseVariables[var_resourceId] == "":
+                    api_check_url = "https://ansible-devops.group.echonet/api/v2/" + str(type) + "/?search=" + str(resource)
+                    taskCheckResource = taskApi.newTask("webhook.JsonWebhook")
+                    taskCheckResource.pythonScript.setProperty("URL", api_check_url)
+                    taskCheckResource.pythonScript.setProperty("method", 'GET')
+                    taskCheckResource.pythonScript.setProperty("jsonPathExpression", "$" + ".results[0].id")
+                    taskCheckResource.variableMapping = {"pythonScript.result" : "$" + "{" + str(var_resourceId) + "}"}
+                    taskCheckResource.pythonScript.setProperty("username", "$" + "{" + "user" + "}")
+                    taskCheckResource.pythonScript.setProperty("password", "$" + "{" + "password" + "}")
+                    taskCheckResource.setTaskFailureHandlerEnabled(True)
+                    taskCheckResource.setTaskRecoverOp(TaskRecoverOp.SKIP_TASK)
+                    taskCheckResource.title = "get " + str(type) + " " + str(resource)
+                    taskApi.addTask(sequentialGroupId, taskCheckResource)
+        - name: 🚧 GET AAP RESOURCES GROUP
+          type: xlrelease.SequentialGroup
+      - name: 🔐 SET AAP ARTIFACTORY CREDENTIAL
+        type: xlrelease.SequentialGroup
+        tasks:
+        - name: 🏭 Set Credential task generator
+          type: xlrelease.ScriptTask
+          script: |-
+            ## get id of sequential group to insert tasks into & Delete tasks if present
+            sequentialGroupId = None
+            parenttask = getCurrentTask().container
+            for child in parenttask.getAllTasks():
+                if str(child.type).lower() == "xlrelease.SequentialGroup".lower():
+                    sequentialGroupId = child.id
+                if str(child.type).lower() == "xlrelease.CustomScriptTask".lower():
+                    taskApi.delete(child.id)
+
+            ## get all release variables into list
+            varList = releaseApi.getVariables(release.id)
+
+
+            for obj in varList:
+                if obj.key == "AAP-id-" + "organizations":
+                    organization_id = obj.value
+                if obj.key == "AAP-id-" + '${AAP-name-organizations}' + "-artifactory-credentials":
+                    resource_id = obj.value
+                    var_name = obj.key
+                    resource_type = var_name.split('-')[-1]
+                if obj.key == "AAP-name-" + '${AAP-name-organizations}' + "-artifactory-credentials":
+                    resource_name = obj.value
+                    credential_type = '24'
+            body = "\"" + "name" + "\"" + ": " + "\"" + str(resource_name) + "\"" + ", " + "\"" + "organization" + "\"" + ": " + str(organization_id) + ", " + "\"" + "credential_type" + "\"" + ": " + str(credential_type) + ", " + "\"" + "inputs" + "\"" + ": { " + "\"" + "artifact_user" + "\"" + ": " + "\"" + "$" + "{" + "user" + "}" + "\"" + ", " + "\"" + "artifact_password" + "\"" + ": " + "\"" + "$" + "{" + "password" + "}" + "\"" + "}"
+
+
+            api_put_url = "https://ansible-devops.group.echonet/api/v2/" + str(resource_type) + "/" + str(resource_id) + "/"
+            taskUpdateResource = taskApi.newTask("webhook.JsonWebhook")
+            taskUpdateResource.pythonScript.setProperty("URL", api_put_url)
+            taskUpdateResource.pythonScript.setProperty("method", 'PUT')
+            taskUpdateResource.pythonScript.setProperty("body", "{" + str(body) + "}")
+            taskUpdateResource.pythonScript.setProperty("username", "$" + "{" + "user" + "}")
+            taskUpdateResource.pythonScript.setProperty("password", "$" + "{" + "password" + "}")
+            taskUpdateResource.title = "Set credential " + " " + str(resource_name)
+            taskApi.addTask(sequentialGroupId, taskUpdateResource)
+        - name: 🚧 SET CREDENTIAL GROUP
+          type: xlrelease.SequentialGroup
+      - name: ✍ UPDATE AAP RESOURCES
+        type: xlrelease.SequentialGroup
+        tasks:
+        - name: 🏭 Update AAP Resources task generator
+          type: xlrelease.ScriptTask
+          script: |-
+            ####get phase name ###
+            phase = getCurrentPhase()
+            current_phase = phaseApi.getPhase(phase.id)
+            phase_name = current_phase.title
+
+
+            ## get id of sequential group to insert tasks into & Delete tasks if present
+            sequentialGroupId = None
+            parenttask = getCurrentTask().container
+            for child in parenttask.getAllTasks():
+                if str(child.type).lower() == "xlrelease.SequentialGroup".lower():
+                    sequentialGroupId = child.id
+                if str(child.type).lower() == "xlrelease.CustomScriptTask".lower():
+                    taskApi.delete(child.id)
+
+            ## Set variables for project update
+            scm_url = '${scm_url}'
+            scm_branch = '${scm_branch}'
+
+            ## Set variables for job_templae update
+            if "Rollback" in str(phase_name):
+                playbook = 'draft_rollback.yaml'
+            else:
+                playbook = 'draft_deploy.yaml'
+
+            ## get all release variables into list
+            varList = releaseApi.getVariables(release.id)
+
+
+            for obj in varList:
+                if obj.key == "AAP-id-" + '${AAP-name-organizations}' + "-projects" or obj.key == "AAP-id-" + '${AAP-name-organizations}' + "-job_templates":
+                    resource_id = obj.value
+                    resource_name = obj.key
+                    resource_type = resource_name.split('-')[-1]
+                    if "projects" in obj.key:
+                        body = "\"" + "scm_url" + "\"" + ": " + "\"" + str(scm_url) + "\"" + ", " + "\"" + "scm_branch" + "\"" + ": " + "\"" + str(scm_branch) + "\""
+                    if "job_templates" in obj.key:
+                        body = "\"" + "playbook" + "\"" + ": " + "\"" + str(playbook) + "\""
+
+                    api_patch_url = "https://ansible-devops.group.echonet/api/v2/" + str(resource_type) + "/" + str(resource_id) + "/"
+                    taskUpdateResource = taskApi.newTask("webhook.JsonWebhook")
+                    taskUpdateResource.pythonScript.setProperty("URL", api_patch_url)
+                    taskUpdateResource.pythonScript.setProperty("method", 'PATCH')
+                    taskUpdateResource.pythonScript.setProperty("body", "{" + str(body) + "}")
+                    taskUpdateResource.pythonScript.setProperty("username", "$" + "{" + "user" + "}")
+                    taskUpdateResource.pythonScript.setProperty("password", "$" + "{" + "password" + "}")
+                    taskUpdateResource.title = "update " + " " + str(resource_name)
+                    taskApi.addTask(sequentialGroupId, taskUpdateResource)
+        - name: 🚧 UPDATE AAP RESOURCES GROUP
+          type: xlrelease.SequentialGroup
+    - name: 🚀 DEPLOY
+      type: xlrelease.SequentialGroup
+      tasks:
+      - name: 🏭 Deploy task generator
+        type: xlrelease.ScriptTask
+        script: |-
+          from com.xebialabs.xlrelease.domain.variables import StringVariable, ListStringVariable, MapStringStringVariable, PasswordStringVariable
+          from com.xebialabs.xlrelease.api.v1.forms import Variable
+          from com.xebialabs.xlrelease.api.v1 import PhaseApi
+          from com.xebialabs.xlrelease.domain.recover import TaskRecoverOp
+
+          releaseId = getCurrentRelease().id
+
+          ## Set AAP Server env
+          listFolder = releaseId.split('/')
+          FolderId = listFolder[1]
+          ServerName = "devopstc-ansibleAutomation-" + '${env}'
+          aap_server_config = configurationApi.searchByTypeAndTitle("ansibletower.Server",str(ServerName), FolderId)[0]
+
+
+          phase = getCurrentPhase()
+          current_phase = phaseApi.getPhase(phase.id)
+          phase_name = current_phase.title
+
+
+          ## get id of sequential group to insert tasks into
+          sequentialGroupId = None
+          parenttask = getCurrentTask().container
+          for child in parenttask.getChildren():
+              if str(child.type).lower() == "xlrelease.sequentialGroup".lower():
+                  sequentialGroupId = child.id
+              if str(child.type).lower() == "ansibletower.launchAndWait".lower():
+                  taskApi.delete(child.id)
+
+          #Set AAP resources Ids
+          varList = releaseApi.getVariables(release.id)
+
+          for obj in varList:
+              if "AAP-id" in obj.key and "credentials" in obj.key:
+                  credential_id = obj.value
+              if "AAP-id" in obj.key and "job_templates" in obj.key:
+                  job_template_id = obj.value
+              if "AAP-id" in obj.key and "inventories" in obj.key:
+                  inventory_id = obj.value
+
+          task=0
+          for api_url in ${api_url_list}:
+              deployTask = taskApi.newTask("ansibletower.launchAndWait")
+              if task == 1:
+                  deployTask.precondition = "releaseVariables['jobstatus'] == 'Failed'"
+              else:
+                  deployTask.variableMapping = {"pythonScript.status" : "$" + "{" + "jobstatus" + "}"}
+                  deployTask.setTaskFailureHandlerEnabled(True)
+                  deployTask.setTaskRecoverOp(TaskRecoverOp.SKIP_TASK)
+              task += 1
+              extra_vars = ${extra_vars}
+              extra_vars["base_url"] = api_url
+
+              ##Create task
+              deployTask.title = 'deploy Draft Control-M' + " " + 'on ' + '${ext_env}' + '${ext_chainNum}'
+              deployTask.pythonScript.setProperty("ansibletower", aap_server_config)
+              deployTask.pythonScript.setProperty("job_template_id",job_template_id)
+              deployTask.pythonScript.setProperty("inventory",inventory_id)
+              deployTask.pythonScript.setProperty("extra_vars", extra_vars)
+              deployTask.pythonScript.setProperty("credentials", credential_id)
+
+
+              ##Add task in sequential group
+              taskApi.addTask(sequentialGroupId, deployTask)
+      - name: 🚧 DEPLOY GROUP
+        type: xlrelease.SequentialGroup
+    - name: 🛃VALIDATION
+      type: xlrelease.GateTask
+      failureHandler: |-
+        index = '${index}'
+
+        ##Create rollback phase
+        index = int(index) + 1
+        current_phase = getCurrentPhase()
+        newphase = phaseApi.copyPhase(current_phase.id, int(index))
+
+        ##update rollback phase title
+        newphase.title = phase.title + ' Rollback'
+        phaseApi.updatePhase(newphase)
+
+        ##Get current phase tasks to skip
+        ListOfCurrentPhaseTasksToSkip = []
+        for task in current_phase.tasks:
+            if task.status == "PLANNED":
+                ListOfCurrentPhaseTasksToSkip.append(task)
+            if task.status == "FAILURE_HANDLER_IN_PROGRESS":
+                LastTaskToSkip = task
+
+        ##Get new phase tasks to skip
+        ListOfNewPhaseTasks = []
+        for task in newphase.tasks:
+            ListOfNewPhaseTasks.append(task)
+        ListOfNewPhaseTasksToSkip = ListOfNewPhaseTasks[0:2]
+
+        ##Delete remain phases
+        ListOfPhases = []
+        for phase in release.phases[int(index):]:
+            ListOfPhases.append(phase)
+            phaseApi.deletePhase(phase.id)
+
+        ##Skip tasks (current + new phase)
+        ListOfNewPhaseTasksToSkip.reverse()
+        ListOfCurrentPhaseTasksToSkip.reverse()
+        ListOftasksToSkip = ListOfNewPhaseTasksToSkip + ListOfCurrentPhaseTasksToSkip
+
+        for task in ListOftasksToSkip:
+            taskApi.assignTask(task.id, releaseVariables['user'])
+            taskApi.skipTask(task.id, "Rollback")
+
+        time.sleep(10)
+
+        ##Skip current task
+        taskApi.assignTask(LastTaskToSkip.id, releaseVariables['user'])
+        taskApi.skipTask(LastTaskToSkip.id, "Rollback")
+      taskFailureHandlerEnabled: true
+      taskRecoverOp: RUN_SCRIPT
+    - name: 👉 DEPLOY TO ANOTHER COULOIR ?
+      type: xlrelease.UserInputTask
+      description: Please enter the required information below.
+      variables:
+      - other_couloir
+    - name: ❓ Next couloir or Next environment
+      type: xlrelease.ScriptTask
+      script: |-
+        phase = getCurrentPhase()
+        #current_phase = phaseApi.getPhase(phase.id)
+        phase_name = phase.title
+
+        if releaseVariables['other_couloir'] == 'yes':
+
+
+          newphase = phaseApi.copyPhase(phase.id,releaseVariables['index'] )
+
+
+          ##update next phase
+          newphase.title = phase_name[0:3]
+          phaseApi.updatePhase(newphase)
+
+          ##Rename promote task
+          list_promote_task = getTasksByTitle('Promote to next environment', phaseTitle = phase_name)
+          promote_task = list_promote_task[0]
+          promote_task.title = 'Promote to next lane'
+          taskApi.updateTask(promote_task)
+
+
+        ##
+        releaseVariables['ext_chainNum'] = ""
+    - name: 👉 Promote to next environment
+      type: xlrelease.UserInputTask
+      description: Please enter the required information below.
+    - name: test
+      type: jenkins.Build
+      jenkinsServer: devopstc-jenkins
+      jobName: p-1212-e0511-carat/job/carat-batch-controlm
+      branch: develop
+    color: "#3d6c9e"  
   riskProfile: Default risk profile
   author: admin
