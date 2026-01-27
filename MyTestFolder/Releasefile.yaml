@@ -1,0 +1,11 @@
+# Exported from:        http://Alens-MacBook-Air.local:5516/
+# Release version:      24.1.0
+
+---
+apiVersion: xl-release/v1
+kind: Import
+spec:
+  imports:
+  - Notifications.yaml
+  - Template_testing.yaml
+  - Trigger_mytrig.yaml

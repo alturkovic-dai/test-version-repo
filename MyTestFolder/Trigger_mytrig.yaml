@@ -1,0 +1,16 @@
+# Exported from:        http://Alens-MacBook-Air.local:5516/
+# Release version:      24.1.0
+
+---
+apiVersion: xl-release/v1
+kind: Templates
+metadata:
+  path: /
+  home: MyTestFolder
+spec:
+- name: MyTrig
+  type: time.Schedule
+  releaseTitle: testsss
+  template: Testing
+  periodicity: 0 0 9-17 * * MON-FRI
+  enabled: false
