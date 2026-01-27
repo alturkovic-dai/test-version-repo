@@ -1,16 +1,17 @@
-# Exported from:        http://Alens-MacBook-Air.local:5516/
-# Release version:      24.1.0
+# Exported from:        http://Nelsons-MacBook-Pro.local:5516/
+# Release version:      25.3.3-107.636
+# Date created:         Tue Jan 27 16:40:28 IST 2026
 
 ---
 apiVersion: xl-release/v1
 kind: Templates
 metadata:
-  path: /
-  home: MyTestFolder
+  path: midd%2Flex
+  home: parentx%2Fmidd%2Flex/midd%2Flex
 spec:
-- name: MyTrig
+- name: trigger1
   type: time.Schedule
-  releaseTitle: testsss
+  releaseTitle: r1
   template: Testing
-  periodicity: 0 0 9-17 * * MON-FRI
-  enabled: false
+  releaseFolder: parentx/midd/lex
+  periodicity: 0 0 * * * *
